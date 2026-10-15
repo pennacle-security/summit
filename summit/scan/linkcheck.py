@@ -50,6 +50,7 @@ PARKING_SIGNATURES = [
     "parkingcrew",
     "bodis.com",
     "hugedomains",
+    "this page is parked free, courtesy of godaddy",
 ]
 
 _MAX_HEAD_BYTES = 3000

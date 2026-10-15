@@ -37,6 +37,14 @@ def test_normal_page_not_flagged():
     assert parking_match("") is None
 
 
+def test_godaddy_parked_page_detected():
+    assert parking_match("This page is parked free, courtesy of GoDaddy.") == "this page is parked free, courtesy of godaddy"
+
+
+def test_godaddy_customer_site_not_flagged():
+    assert parking_match("Hosted with GoDaddy - visit godaddy.com for support") is None
+
+
 # --- smart parameter targeting ---
 
 def test_tracker_params_skipped():
