@@ -40,6 +40,15 @@ def test_plain_page_no_waf():
     assert detect_waf(make_response(b"<html>normal blog about firewalls</html>")) is None
 
 
+def test_sitelock_detected_by_header():
+    detected = detect_waf(make_response(headers={"x-sitelock-id": "abc123"}))
+    assert detected is not None and detected[0] == "SiteLock"
+
+
+def test_normal_page_not_flagged_as_sitelock():
+    assert detect_waf(make_response(b"we use sitelock at work")) is None
+
+
 # --- CAPTCHA / challenge detection ---
 
 def test_recaptcha_detected():
