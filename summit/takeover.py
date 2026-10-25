@@ -26,6 +26,7 @@ TAKEOVER_SIGNATURES: list[tuple[str, str]] = [
     ("Tumblr", "doesn't currently exist at this address"),
     ("Surge.sh", "project not found"),
     ("Bitbucket", "repository not found"),
+    ("Webflow", "the page you are looking for doesn&#x27;t exist or has been moved"),
 ]
 
 _MAX_BODY = 20_000

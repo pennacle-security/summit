@@ -42,6 +42,18 @@ def test_fingerprint_helper():
     assert fingerprint_takeover("everything is fine") is None
 
 
+def test_webflow_takeover_detected():
+    body = "<html>Oops. The page you are looking for doesn&#x27;t exist or has been moved.</html>"
+    findings = check_takeover(make_response(body, status=404))
+    assert len(findings) == 1
+    assert "Webflow" in findings[0].title
+
+
+def test_webflow_marker_on_200_is_not_takeover():
+    body = "The page you are looking for doesn&#x27;t exist or has been moved."
+    assert check_takeover(make_response(body, status=200)) == []
+
+
 # --- Host header injection + CORS reflection (live mini servers) ---
 
 class EchoHostHandler(BaseHTTPRequestHandler):
