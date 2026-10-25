@@ -387,19 +387,6 @@ A repository that helps people back grows through word-of-mouth:
 
 If summit saved you time on an engagement, a star helps the next person find it.
 
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/SakarPaisen"><img src="https://avatars.githubusercontent.com/u/141169555?v=4?s=100" width="100px;" alt="SakarPaisen"/><br /><sub><b>SakarPaisen</b></sub></a><br /><a href="https://github.com/pennacle-security/summit/commits?author=SakarPaisen" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mrvi0"><img src="https://avatars.githubusercontent.com/u/196581611?v=4?s=100" width="100px;" alt="mrvi0"/><br /><sub><b>mrvi0</b></sub></a><br /><a href="https://github.com/pennacle-security/summit/commits?author=mrvi0" title="Code">💻</a></td>
-    </tr>
-  </tbody>
-</table>
-
 <!-- markdownlint-enable -->
 <!-- prettier-ignore-end -->
 <!-- ALL-CONTRIBUTORS-LIST:END -->
