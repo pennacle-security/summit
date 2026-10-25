@@ -64,7 +64,34 @@ Mark the spots worth varying in a raw request with `§positions§` (the Burp Int
 summit proxy --port 8080
 ```
 
-Plain HTTP is forwarded and logged into a SQLite site map. HTTPS CONNECT tunnels are logged and passed through; TLS interception needs a generated CA and is on the roadmap.
+Plain HTTP is forwarded and logged into a SQLite site map. HTTPS CONNECT tunnels are logged and passed through.
+
+```bash
+summit proxy --port 8080 --tls-intercept
+```
+
+With `--tls-intercept`, the proxy generates a local CA on first run
+(`~/.summit/proxy-ca`, override with `--ca-dir`), issues a per-host leaf
+certificate for every tunnel, and logs every decrypted request into the
+site map. Trust the printed `ca.crt` once in your browser or OS; the
+origin is reached with its own TLS session, verification off. Needs the
+optional `cryptography` package: `pip install 'summit-scanner[proxy]'`.
+
+## schedule - scan on an interval, diff every round
+
+```bash
+summit schedule https://app.local --every 900 --times 8 --fail-on high --out-dir summit-history
+```
+
+Runs the real scanner as a subprocess per round, writes `scan-NNN.json`
+per round, and diffs each round against the previous one with the same
+dedup key as `summit diff`. `--fail-on` exits 1 when a round reports a
+new or regressed finding at or above the severity - a cron job becomes a
+regression alarm. Extra scan flags pass through after `--`:
+
+```bash
+summit schedule https://app.local --every 3600 -- --rate 5 --no-templates
+```
 
 ## repeater - raw request sender
 

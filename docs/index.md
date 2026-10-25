@@ -29,7 +29,7 @@ No internet needed for the core demo. The target binds to 127.0.0.1 only.
 | Link health | broken-link hijacking: dead domains, parked domains, private-range guard |
 | Attack surface | crawl once and inventory pages, forms, parameters, technologies and outbound links |
 | Fuzzing | directory brute force with wildcard-baseline filtering, plus Intruder-style payload fuzzing of raw `§position§` requests |
-| Proxy | intercepting HTTP proxy with a SQLite site map |
+| Proxy | intercepting HTTP proxy with a SQLite site map; `--tls-intercept` decrypts HTTPS with a self-generated CA |
 | Recon | chains subfinder -> httpx -> nmap, with honest failure notes |
 | Toolkit | JWT / base64 / URL / hex encode & decode |
 

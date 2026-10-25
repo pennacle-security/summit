@@ -90,6 +90,7 @@ CWE_BY_CHECK_ID = {
     "graphql-field-suggestions": "CWE-200",
     "email-enumeration": "CWE-204",
     "directory-listing": "CWE-548",
+    "cache-deception": "CWE-441",
     "cacheable-sensitive": "CWE-524",
     "headers-grade": "CWE-693",
     "csrf-missing": "CWE-352",
@@ -141,6 +142,8 @@ IMPACT_BY_CHECK_ID = {
     "path-traversal": "Arbitrary file read on the server: source code, configuration files, credentials.",
     "email-enumeration": "Attackers confirm which email addresses have accounts - targeted phishing and credential stuffing.",
     "directory-listing": "Every file in the directory is visible and downloadable to anyone.",
+    "cache-deception": "The victim's authenticated response is stored in a shared cache under a URL "
+    "anyone can fetch - their private page becomes public.",
     "cacheable-sensitive": "Credentials retained in browser and proxy caches - readable by the next user of the machine.",
     "headers-grade": "Summary of browser-side protection coverage.",
     "csrf-missing": "Other websites can submit this form as your logged-in users.",

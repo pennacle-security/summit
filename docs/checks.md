@@ -23,6 +23,7 @@ Every check states its **confirmation basis**. `confirmed` = an observed fact, `
 | Hardcoded secret in client-side code | medium | CWE-798 | vendor pattern + entropy, value redacted -> `likely` (private keys `confirmed`) |
 | Security headers grade | info | CWE-693 | deterministic A..F roll-up |
 | Cacheable sensitive response | low | CWE-524 | sensitive marker + no Cache-Control -> `needs-manual` |
+| Web cache deception surface | low | CWE-441 | cacheable suffix mirrors session page -> `needs-manual` |
 | Known CVE in version banner | low | CWE-1104 | offline CVE database range match -> `needs-manual` |
 | Known CVE in frontend library | low | CWE-1104 | body signature (jQuery, lodash, WordPress) -> `needs-manual` |
 

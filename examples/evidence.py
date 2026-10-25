@@ -474,6 +474,101 @@ def main() -> int:
             and sections == len(findings),
             f"{sections}/{len(findings)} finding section(s) rendered, severity summary table present",
         )
+
+        # --- 28. TLS interception: a real CONNECT tunnel through the proxy,
+        #         decrypted with the locally generated CA, and the inner
+        #         request lands in the site map in plaintext.
+        import socket as socket_module  # noqa: E402
+        import sqlite3 as sqlite3_module  # noqa: E402
+        import ssl as ssl_module  # noqa: E402
+
+        from summit.proxy.ca import issue_leaf as ca_issue_leaf  # noqa: E402
+        from summit.proxy.ca import load_or_create_ca  # noqa: E402
+        from summit.proxy.server import ProxyServer  # noqa: E402
+
+        ca_dir = Path(tempfile.mkdtemp(prefix="summit-ca-"))
+        load_or_create_ca(ca_dir)
+        tls_origin = ThreadingHTTPServer(("127.0.0.1", 0), DemoHandler)
+        origin_ctx = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
+        origin_ctx.load_cert_chain(str(ca_issue_leaf(ca_dir, "127.0.0.1")))
+        tls_origin.socket = origin_ctx.wrap_socket(tls_origin.socket, server_side=True)
+        # abrupt proxy-side teardowns after Connection: close are expected;
+        # the origin's reset traceback is noise here, not a claim failure
+        tls_origin.handle_error = lambda request, client_address: None
+        threading.Thread(target=tls_origin.serve_forever, daemon=True).start()
+        origin_port = tls_origin.server_address[1]
+
+        def _free_port() -> int:
+            with socket_module.socket() as sock:
+                sock.bind(("127.0.0.1", 0))
+                return sock.getsockname()[1]
+
+        proxy_port = _free_port()
+        sitemap_path = Path(tempfile.mkdtemp(prefix="summit-map-")) / "sitemap.db"
+        proxy = ProxyServer(host="127.0.0.1", port=proxy_port, db_path=str(sitemap_path),
+                            tls_intercept=True, ca_dir=str(ca_dir))
+        threading.Thread(target=proxy.start, daemon=True).start()
+        time.sleep(0.4)
+        try:
+            raw = socket_module.create_connection(("127.0.0.1", proxy_port), timeout=5)
+            raw.sendall(b"CONNECT 127.0.0.1:%d HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n" % origin_port)
+            connect_reply = b""
+            while b"\r\n\r\n" not in connect_reply:
+                connect_reply += raw.recv(4096)
+            client_ctx = ssl_module.create_default_context()
+            client_ctx.load_verify_locations(str(ca_dir / "ca.crt"))
+            tls_client = client_ctx.wrap_socket(raw, server_hostname="127.0.0.1")
+            tls_client.sendall(b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+            body = b""
+            while True:
+                chunk = tls_client.recv(4096)
+                if not chunk:
+                    break
+                body += chunk
+            tls_client.close()
+            rows = sqlite3_module.connect(str(sitemap_path)).execute(
+                "SELECT method, url, status FROM sitemap WHERE method = 'GET'"
+            ).fetchall()
+            logged = [row for row in rows if row[1] == f"https://127.0.0.1:{origin_port}/" and row[2] == 200]
+            claim(
+                "TLS interception: HTTPS through the proxy is decrypted and logged in plaintext",
+                b"200" in body.split(b"\r\n", 1)[0] and b"Summit demo shop" in body and bool(logged),
+                f"CONNECT tunnel -> TLS 1.3 via the proxy CA, GET / answered HTTP "
+                f"{body.split(b' ')[1].decode() if b' ' in body else '?'}; site map row: {logged[0] if logged else 'MISSING'}",
+            )
+        finally:
+            proxy.stop()
+            tls_origin.shutdown()
+
+        # --- 29. Web cache deception: the session-bearing /account page is
+        #         served for cacheable path suffixes - reported needs-manual.
+        wcd = next((f for f in findings if f.check_id == "cache-deception"), None)
+        claim(
+            "web cache deception surface: session page answers under a cacheable .js path",
+            wcd is not None and wcd.confidence == "needs-manual" and "/account" in wcd.url,
+            f"{wcd.evidence if wcd else 'not found'} | {cwe_for('cache-deception') or 'CWE-441'}",
+        )
+
+        # --- 30. Scan scheduling: two rounds on an interval, the second diffed
+        #         against the first with the same dedup key as `summit diff`.
+        import subprocess as subprocess_module  # noqa: E402
+
+        history_dir = Path(tempfile.mkdtemp(prefix="summit-hist-"))
+        schedule_run = subprocess_module.run(
+            [sys.executable, "-m", "summit", "schedule", BASE,
+             "--every", "0.5", "--times", "2", "--out-dir", str(history_dir),
+             "--", "--no-templates", "--skip-linkcheck", "--no-active"],
+            capture_output=True, text=True, timeout=120,
+        )
+        rounds = sorted(history_dir.glob("scan-*.json"))
+        claim(
+            "scan scheduling: rounds run on an interval and every round is diffed",
+            schedule_run.returncode == 0 and len(rounds) == 2
+            and "[round 1/2]" in schedule_run.stdout and "[round 2/2]" in schedule_run.stdout
+            and "new 0, resolved 0, regressed 0" in schedule_run.stdout,
+            f"2 round(s) completed in {schedule_run.stdout.count('[round ')}/2 printed summaries, "
+            f"diff line present: {'new 0, resolved 0, regressed 0' in schedule_run.stdout}",
+        )
     finally:
         server.shutdown()
 

@@ -34,6 +34,7 @@ Seeded vulnerabilities:
     - GraphQL leak        /graphql         (introspection enabled in production)
     - GraphQL suggestions /graphql         (invalid fields leak schema names)
     - fuzz seed           /api/discount?code= (only valid codes diverge)
+    - cache deception     /account         (session cookie + suffix-tolerant routing)
     - client CVE leak     (page references jQuery 3.4.1 + WordPress 5.7.1 banners)
     - missing security headers + version disclosure on every response
     - SSRF (OOB)          /fetch?url=      (fetches loopback URLs only - proven via callback)
@@ -85,6 +86,7 @@ PAGE = """<!doctype html>
   <li><a href="/dom">dom</a></li>
   <li><a href="/.env">env</a></li>
   <li><a href="/api/discount?code=SUMMIT10">discount</a></li>
+  <li><a href="/account">account</a></li>
   <li><a href="/graphql">graphql</a></li>
   <li><a href="/register?email=demo@demo.local">register</a></li>
   <li><a href="/files/">files</a></li>
@@ -335,6 +337,18 @@ class DemoHandler(BaseHTTPRequestHandler):
                 "DB_HOST=127.0.0.1\n"
             )
             self._html(body)
+
+        elif path == "/account" or path.startswith("/account/"):
+            # Seed for web cache deception: the response carries the session
+            # cookie and the router ignores path suffixes, so
+            # /account/anything.js answers with the same authenticated page -
+            # exactly what a shared cache keys on.
+            self._html(
+                "<html><body><h1>Account</h1>"
+                "<p>Plan: pro. Email: admin@demo.local.</p>"
+                "<p>Billing history: 3 invoices, all paid.</p></body></html>",
+                extra_headers={"Set-Cookie": "session=demo-static-session; Path=/"},
+            )
 
         elif path == "/api/discount":
             # Seed for the Intruder-style fuzzer: the response only moves

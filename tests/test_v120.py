@@ -807,4 +807,4 @@ def test_run_templates_skipped_in_passive_only_mode(monkeypatch):
 
 
 def test_version_is_1_3_0():
-    assert __version__ == "2.0.0"
+    assert __version__ == "2.1.0"

@@ -11,14 +11,14 @@
   <a href="https://pennacle-security.github.io/summit/"><img src="https://img.shields.io/badge/docs-live-2ea44f" alt="docs"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="python 3.10+">
   <img src="https://img.shields.io/github/license/pennacle-security/summit?color=8b949e" alt="MIT license">
-  <img src="https://img.shields.io/badge/dependencies-3%20FLOSS%20packages-8b949e" alt="three dependencies">
+  <img src="https://img.shields.io/badge/dependencies-3%20core%20%2B%201%20optional-8b949e" alt="dependencies">
 </p>
 
-<p align="center">One scriptable CLI for web security testing: scanner, proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions and recon.<br>57+ checks across 11 families, 37 bundled YAML templates, Intruder-style payload fuzzing and a no-traffic attack-surface map. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
+<p align="center">One scriptable CLI for web security testing: scanner, TLS-intercepting proxy, fuzzer, authorization testing, WAF analysis, link-hijack detection, race conditions, scheduled monitoring and recon.<br>58+ checks across 11 families, 37 bundled YAML templates, Intruder-style payload fuzzing and a no-traffic attack-surface map. Free where the equivalents are paid - by <a href="https://github.com/pennacle-security">Pennacle Security</a>.</p>
 
 ---
 
-We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 57+ checks across 11 families, a one-command attack-surface map, and payload fuzzing that speaks the Intruder file format. Summit is that tool - v2.0.0, MIT, built in the open. Three dependencies (`requests`, `pyyaml`, `packaging`), all FLOSS, all standard.
+We use Burp and ZAP every day. We also kept wanting three things they are not: a scanner we can script against in CI, findings that tell us how sure they are, and a codebase small enough to read in one sitting. Summit now has 58+ checks across 11 families, a one-command attack-surface map, payload fuzzing that speaks the Intruder file format, and a proxy that decrypts HTTPS with a CA it generates itself. Summit is that tool - v2.1.0, MIT, built in the open. Three core dependencies (`requests`, `pyyaml`, `packaging`) plus one optional (`cryptography`, only for TLS interception), all FLOSS, all standard.
 
 **Full documentation:** [pennacle-security.github.io/summit](https://pennacle-security.github.io/summit/)
 
@@ -52,6 +52,8 @@ Capabilities that usually sit behind paid tooling, plus the scanning core:
 | Recon chain: subfinder -> httpx -> nmap | `summit recon` | manual gluing |
 | Race condition detection | `summit race` | Burp Turbo Intruder (paid) |
 | Intruder-style payload fuzzing | `summit fuzz --request` | paid (Intruder) |
+| TLS-intercepting proxy | `summit proxy --tls-intercept` | paid core |
+| Scheduled scans with per-round diffing | `summit schedule` | cron + glue scripts |
 | TLS certificate audit | `summit tls` | manual / sslscan |
 | Rate limiting, retries, JWT/encoder toolkit | built in | add-ons / paid |
 | CI-ready, confidence-labelled, CWE/CVE-tagged findings | the whole point | paid automation |
@@ -119,7 +121,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 
 ```text
 [PASS] full scan: 20 seeded check families detected, zero false positives
-       147 findings in 7.4s (1093 requests), missing=none, control link flagged=no, 50 finding(s) carry confidence=confirmed
+       154 findings in 7.1s (1095 requests), missing=none, control link flagged=no, 51 finding(s) carry confidence=confirmed
 [PASS] resource takeover fingerprint detected on the target's own 404
        Possible AWS S3 resource takeover | AWS S3: 'nosuchbucket'
 [PASS] host header injection: marker domain echoed back by the app
@@ -131,9 +133,9 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] CAPTCHA challenge detected (reported, not solved)
        /login -> reCAPTCHA via marker 'recaptcha/api.js'
 [PASS] rate limiting: --rate 5 paces 12 requests to ~2.2s; unlimited runs free
-       12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.01s
+       12 requests at rate 5 -> 2.20s (theoretical floor: 2.2s); 12 requests unlimited -> 0.03s
 [PASS] concurrency on a latency-bearing target: 8 workers vs serial (best of 3)
-       40 requests x 25ms latency: serial 1.49s -> parallel 0.17s (8.7x speedup)
+       40 requests x 25ms latency: serial 1.38s -> parallel 0.17s (7.9x speedup)
 [PASS] smart prioritizer ranks known-injectable parameters first
        probing starts with: [('query', 'search?query=laptop'), ('id', 'user?id=1'), ('url', 'example.com')]
 [PASS] toolkit decodes JWT header/payload and states the signature is unverified
@@ -163,7 +165,7 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] frontend CVE detection: jQuery 3.4.1 + WordPress 5.7.1 map to known CVEs
        ['CVE-2020-11023', 'CVE-2021-29447'] (body signatures: CVE-2020-11023, CVE-2021-29447 (3.4.1, 5.7.1))
 [PASS] SSRF confirmed out-of-band: the server fetched our callback URL
-       OOB hit received for token ssrf576fba17a1fc84c7 after payload http://127.0.0.1:31135/ssrf576fba17a1fc84c7; callback log: 14:14:00  GET    /ssrf576fba17a1fc84c7  from 127.0.0.1  token=ssrf576fba17a1fc84c7; redirector control: silent
+       OOB hit received for token ssrf20e95990eeac7203 after payload http://127.0.0.1:56202/ssrf20e95990eeac7203; callback log: 06:50:16  GET    /ssrf20e95990eeac7203  from 127.0.0.1  token=ssrf20e95990eeac7203; redirector control: silent
 [PASS] XXE: external entity resolved, local file content returned
        file content signature in response: 'root:x:0:0:' | CWE-611
 [PASS] TRACE enabled: probe marker header echoed back
@@ -177,9 +179,15 @@ Every claim on this page is reproduced by [`examples/evidence.py`](examples/evid
 [PASS] GraphQL field suggestions leak schema names on an invalid field
        POST /graphql -> Cannot query field 'summitNoSuchFieldProbe' on type 'Query'. Did you mean 'summitSecretField' or 'summitAdminField'? | CWE-200
 [PASS] markdown report renders every finding for triage documents
-       147/147 finding section(s) rendered, severity summary table present
+       154/154 finding section(s) rendered, severity summary table present
+[PASS] TLS interception: HTTPS through the proxy is decrypted and logged in plaintext
+       CONNECT tunnel -> TLS 1.3 via the proxy CA, GET / answered HTTP 200; site map row: ('GET', 'https://127.0.0.1:56206/', 200)
+[PASS] web cache deception surface: session page answers under a cacheable .js path
+       GET /account/summit-wcd-session.js -> HTTP 200 mirrors /account (129B vs 129B); Cache-Control: not set (defaults apply); session cookie present | CWE-441
+[PASS] scan scheduling: rounds run on an interval and every round is diffed
+       2 round(s) completed in 2/2 printed summaries, diff line present: True
 
-evidence summary: 30/30 claims verified
+evidence summary: 33/33 claims verified
 ```
 
 </details>
@@ -211,7 +219,8 @@ The demo seeds a *healthy* outbound link (`https://example.com`) as a negative c
 | `summit fuzz <url>` | directory brute force with wildcard-baseline filtering - or Intruder-style payload fuzzing: `fuzz --request req.txt --payloads 'a,b,c'` walks payloads through `§positions§` in a raw request (sniper/pitchfork, `none`/`url`/`b64` encoders, divergence judged against a control request). |
 | `summit recon <domain>` | chain subfinder -> httpx -> nmap into one report. |
 | `summit tls <host>` | certificate expiry / self-signed / legacy TLS version audit. |
-| `summit proxy` | intercepting HTTP proxy with a SQLite site map. |
+| `summit proxy` | intercepting HTTP proxy with a SQLite site map. `--tls-intercept` decrypts HTTPS with a locally generated CA - trust it once, every inner request lands in the site map in plaintext (needs `pip install 'summit-scanner[proxy]'`). |
+| `summit schedule <url>` | run a scan on an interval and diff every round against the previous one (`--fail-on` gates on new or regressed findings; cron-friendly). |
 | `summit repeater <file>` | send a raw request file (Burp-style). |
 | `summit encode` / `summit decode` | base64, URL, hex, JWT (decode-only, honestly unverified). |
 | `summit race <url>` | fire a burst of concurrent requests to surface race windows. |
@@ -236,6 +245,12 @@ Shared flags on scanning commands: `--workers`, `--rate` (requests/second ceilin
 **Payload fuzzing, Intruder-style.** Mark the spots worth varying in a raw request with `§positions§` - the same convention Burp uses, so request files paste straight in - and `summit fuzz --request req.txt --payloads 'a,b,c'` walks them. Sniper varies one position at a time; pitchfork pairs each position with its own payload file; payloads can pass through URL or base64 encoders. A control request is measured first, and a response only counts as a divergence when its status or body size really moved from that control - divergence is where hidden behavior lives (valid identifiers, debug flags, privilege boundaries), and it is always reported `needs-manual` for a human to judge. Results print per payload and export as JSON.
 
 **GraphQL leaks beyond introspection.** Servers that answer an invalid field with "Did you mean ..." hand out real schema names one probe at a time - even with introspection disabled. The check confirms only on GraphQL-shaped validation errors, so plain 404s and non-GraphQL endpoints stay quiet.
+
+**TLS interception, with a CA the tool generates itself.** `summit proxy --tls-intercept` generates a local CA on first run (after that, everything reuses it), issues a per-host leaf certificate for every CONNECT tunnel, and logs every decrypted request into the SQLite site map. Trust the printed CA once in your browser or OS and HTTPS traffic through the proxy reads like HTTP. The origin gets its own TLS session with verification off - the nature of an intercepting proxy. Optional `cryptography` dependency, stdlib alone cannot mint certificates.
+
+**Scan scheduling - monitoring with a memory.** `summit schedule URL --every 900 --times 8 --fail-on high` runs the real scanner as a subprocess on an interval, keeps one JSON report per round, and diffs every round against the previous one with the same dedup key as `summit diff`. A new or regressed finding at or above the gate fails the run, so a cron job becomes a regression alarm instead of a growing pile of unexamined reports.
+
+**Web cache deception, honestly gated.** A cacheable-looking path suffix (`/account/anything.js`) that returns the same session-bearing response as the original page is a deception surface - if a shared cache keys on the full URL, the victim's private page becomes public. The probe only fires on responses that carry a session cookie, must byte-match the original, and must not opt out of caching; it always ships `needs-manual`, because only a human who knows the cache topology can confirm the stored entry is reachable third-party.
 
 **OS command injection, SSTI, CRLF, sensitive files, XPath, SSI.** Each ships with a hard confirmation rule: OS command injection uses an exec marker plus a control probe (a server that merely reflects input shows both markers; a server that executes shows the exec marker more often - measured `x2 vs x1`), SSTI requires `{{7*7}}` to come back as `49`, CRLF requires our injected header to materialize, sensitive files (`.env`, `.git/config`, cloud keys, Terraform state, dumps, backups) require a content signature - never just a 200, XPath requires a fresh XML parser error that the baseline did not contain, and SSI requires the `exec` marker to be printed **without** the raw directive (reflection alone never counts). Every finding is tagged with its CWE automatically (CWE-78, CWE-1336, CWE-113, CWE-538, CWE-643, CWE-96), and version banners are matched against an offline CVE database (spoofable banners stay `needs-manual`).
 
@@ -322,6 +337,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | Email/user enumeration | active | medium | differential response for unknown identities -> `likely` |
 | Directory listing | passive-origin | medium | "Index of /" content signature -> `confirmed` |
 | Cacheable sensitive response | passive | low | sensitive marker + no Cache-Control -> `needs-manual` |
+| Web cache deception surface | active-origin | low | cacheable suffix mirrors session page -> `needs-manual`, CWE-441 |
 | Security headers grade | passive | info | deterministic A..F roll-up |
 | Form missing CSRF token | passive-origin | medium | POST/password form without CSRF field -> `likely` |
 | Hidden parameter (reflected) | mine | medium | unique marker reflected -> `confirmed` |
@@ -353,7 +369,7 @@ False positives waste your triage time. False negatives get clients breached. Su
 | JWT/encoder toolkit | built in | add-on | built in |
 | Takeover fingerprints, host header, CORS | built in | add-ons | add-ons |
 | Codebase you can audit in an afternoon | ~7.5k lines | large | closed source |
-| TLS-intercepting proxy | on the roadmap | yes | yes |
+| TLS-intercepting proxy | built in (`--tls-intercept`) | yes | yes |
 | Race condition detection | `summit race` | add-on | paid (Turbo Intruder) |
 | Intruder-style payload fuzzing | built in | add-on | paid (Intruder) |
 | TLS certificate audit | `summit tls` | add-on | built in |
@@ -364,7 +380,10 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 
 ## Roadmap
 
-- [ ] TLS interception in the proxy (generated CA)
+- [x] ~~TLS interception in the proxy (generated CA)~~
+- [x] ~~Scan scheduling~~
+- [ ] Proxy match & replace rules (request interception beyond logging)
+- [ ] HTTP/2-specific probes
 - [x] ~~POST form and JSON body injection points~~
 - [x] ~~Authenticated scanning (cookies, headers)~~
 - [x] ~~CNAME-level subdomain takeover (DNS resolution + service verification)~~
@@ -373,7 +392,6 @@ We are not trying to replace either of them. Summit is the small tool you drop i
 - [x] ~~Collaboration server (out-of-band detection via HTTP callbacks)~~
 - [x] ~~Headless browser integration (JS rendering + DOM-based XSS)~~
 - [x] ~~Scan diffing (compare scans over time)~~
-- [ ] Scan scheduling
 
 ## Community and contributors
 

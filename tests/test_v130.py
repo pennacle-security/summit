@@ -37,7 +37,7 @@ def _report(tmp_path: Path, findings: list[dict]) -> str:
 
 
 def test_version_is_1_3_0():
-    assert __version__ == "2.0.0"
+    assert __version__ == "2.1.0"
 
 
 def test_split_csv_is_tolerant():

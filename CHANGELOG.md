@@ -4,6 +4,46 @@ All notable changes to summit are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [v2.1.0] - 2026-10-26
+
+### Added
+
+- TLS interception in the proxy (the top roadmap item): `summit proxy
+  --tls-intercept` generates a local CA on first run (`~/.summit/proxy-ca`,
+  or `--ca-dir`), issues a per-host leaf certificate for every CONNECT
+  tunnel, and logs every decrypted inner request into the SQLite site map.
+  Trust the printed CA once and HTTPS through the proxy reads like HTTP;
+  the origin gets its own TLS session with verification off. Needs the new
+  optional `cryptography` dependency - `pip install 'summit-scanner[proxy]'`.
+  Pass-through mode (the old behavior) stays the default and is now covered
+  by tests - which caught and fixed a pre-existing bug where a tunnel whose
+  origin closed first (Connection: close) left the client waiting for an
+  EOF that never came.
+- Scan scheduling (the last roadmap item): `summit schedule URL --every
+  900 --times 8` runs the real scanner as a subprocess on an interval,
+  keeps one JSON report per round, and diffs every round against the
+  previous one with the same dedup key as `summit diff`. `--fail-on`
+  gates on new or regressed findings per round, so a cron job becomes a
+  regression alarm. Extra scan flags pass through after a bare `--`.
+- Web cache deception check (CWE-441): a cacheable-looking path suffix
+  that returns the same session-bearing response as the original page is
+  reported `needs-manual`. Fires only on responses carrying a session
+  cookie, requires a byte-prefix match with the original, and skips
+  responses that opt out of caching (`no-store`/`private`/`no-cache`).
+- Demo-target seed for the deception check (`/account`, session cookie
+  plus suffix-tolerant routing). The evidence runner grew from 30 to 33
+  claims; the README example output carries the v2.1.0 run.
+
+### Changed
+
+- The proxy's relay now fixes response framing (Transfer-Encoding dropped,
+  Content-Length set from the decoded body) instead of passing chunked
+  framing alongside a decoded body.
+- `cryptography>=42` ships as an optional extra (`[proxy]`); the core
+  dependency list stays at three. CI installs the extra so the TLS proxy
+  is tested on every push.
+
+
 ## [v2.0.0] - 2026-10-25
 
 ### Added

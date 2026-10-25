@@ -240,7 +240,7 @@ class ScanEngine:
                 host = origin.hostname or ""
                 takeover_step = bool(self.takeover and self._takeover_worthy(host))
                 oob_step = bool(self.oob_callback_base and self.oob_hit_checker is not None)
-                deep_steps = 7 + int(oob_step) + int(takeover_step)
+                deep_steps = 8 + int(oob_step) + int(takeover_step)
                 deep_before = len(self.findings)
                 if self.progress is not None:
                     self.progress.phase("DEEP", deep_steps)
@@ -288,6 +288,16 @@ class ScanEngine:
                         self.add(finding)
                 except Exception as exc:
                     self.errors.append(f"directory-listing check failed: {exc}")
+
+                from .modules.cache_deception import run_cache_deception
+
+                if self.progress is not None:
+                    self.progress.task("cache-deception", "GET", base)
+                try:
+                    for finding in run_cache_deception(self.client, spider_result.get("pages", [])):
+                        self.add(finding)
+                except Exception as exc:
+                    self.errors.append(f"cache-deception check failed: {exc}")
 
                 if self.progress is not None:
                     self.progress.task("http-methods", "OPTIONS", base)

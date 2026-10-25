@@ -247,6 +247,23 @@ def build_parser() -> argparse.ArgumentParser:
     proxy_p.add_argument("--bind", default="127.0.0.1")
     proxy_p.add_argument("--port", type=int, default=8080)
     proxy_p.add_argument("--db", default="summit_sitemap.db", help="sqlite site map path")
+    proxy_p.add_argument("--tls-intercept", dest="tls_intercept", action="store_true",
+                         help="decrypt HTTPS CONNECT tunnels with a locally generated CA (needs: pip install 'summit-scanner[proxy]')")
+    proxy_p.add_argument("--ca-dir", dest="ca_dir", default=None,
+                         help="directory for the generated proxy CA (default ~/.summit/proxy-ca)")
+
+    sched = sub.add_parser(
+        "schedule",
+        help="run a scan on an interval and diff every round (cron-friendly); "
+             "extra scan flags go after --, e.g.: summit schedule URL --every 900 --fail-on high -- --rate 5",
+    )
+    sched.add_argument("url")
+    sched.add_argument("--every", type=float, default=3600.0, help="seconds between rounds (default 3600)")
+    sched.add_argument("--times", type=int, default=0, help="rounds to run; 0 = keep going until Ctrl+C")
+    sched.add_argument("--out-dir", dest="out_dir", default="summit-history",
+                       help="directory for the per-round JSON reports (default summit-history)")
+    sched.add_argument("--fail-on", dest="fail_on", choices=list(SEVERITIES), default=None,
+                       help="exit 1 when a round reports a new or regressed finding at or above this severity")
 
     rep = sub.add_parser("repeater", help="send a raw HTTP request from a file (Burp-style)")
     rep.add_argument("file")
@@ -1255,14 +1272,42 @@ def _cmd_fuzz_intruder(args: argparse.Namespace, client: HttpClient) -> int:
 
 def _cmd_proxy(args: argparse.Namespace) -> int:
     _banner()
-    server = ProxyServer(host=args.bind, port=args.port, db_path=args.db)
+    server = ProxyServer(host=args.bind, port=args.port, db_path=args.db,
+                         tls_intercept=getattr(args, "tls_intercept", False),
+                         ca_dir=getattr(args, "ca_dir", None))
     print(colors.gray(f"  starting proxy on {args.bind}:{args.port} (site map: {args.db}) - Ctrl+C to stop"))
     try:
         server.start()
     except KeyboardInterrupt:
         print("\n" + colors.gray("shutting down"))
         server.stop()
+        return 0
+    except RuntimeError as exc:  # includes CaUnavailable from the optional dependency
+        print(colors.fail(str(exc)))
+        return 2
     return 0
+
+
+def _cmd_schedule(args: argparse.Namespace) -> int:
+    global _SILENT
+    _SILENT = getattr(args, "silent", False)
+    _banner(compact=True)
+    scan_args = list(args.scan_args or [])
+    if scan_args and scan_args[0] == "--":
+        scan_args = scan_args[1:]
+    _phase("SCHEDULE", f"monitoring {colors.bold(args.url)} - every {args.every:.0f}s"
+                       f"{f', {args.times} round(s)' if args.times > 0 else ', until Ctrl+C'}"
+                       + (f", gate on {args.fail_on}" if args.fail_on else ""))
+    from .schedule import run_schedule
+
+    return run_schedule(
+        args.url,
+        every=args.every,
+        times=args.times,
+        out_dir=args.out_dir,
+        fail_on=args.fail_on,
+        scan_args=scan_args,
+    )
 
 
 def _cmd_repeater(args: argparse.Namespace) -> int:
@@ -1360,7 +1405,17 @@ def main(argv: list[str] | None = None) -> int:
     if _has_flag(argv, "--no-color"):
         colors.set_enabled(False)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    raw = list(argv) if argv is not None else sys.argv[1:]
+    # `schedule` passes everything after a bare -- straight to summit scan.
+    # argparse cannot express that (a REMAINDER positional would swallow the
+    # schedule flags too), so the split happens before parsing.
+    passthrough: list[str] = []
+    if "schedule" in raw and "--" in raw:
+        split_at = raw.index("--")
+        passthrough = raw[split_at + 1:]
+        raw = raw[:split_at]
+    args = parser.parse_args(raw)
+    args.scan_args = passthrough
     global _SILENT
     _SILENT = getattr(args, "silent", False)
     settings = resolve_paths(load_settings())
@@ -1387,6 +1442,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_fuzz(args)
         if args.command == "proxy":
             return _cmd_proxy(args)
+        if args.command == "schedule":
+            return _cmd_schedule(args)
         if args.command == "repeater":
             return _cmd_repeater(args)
         if args.command == "mine":
