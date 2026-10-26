@@ -135,6 +135,25 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
+def _wait_for_listener(port: int, timeout: float = 10.0) -> None:
+    """Block until something accepts on the port.
+
+    The proxy binds from a background thread after generating the CA, so a
+    test that connects immediately races the listener - fine on a fast
+    machine, ConnectionRefused on a loaded CI runner.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                return
+        except OSError:
+            time.sleep(0.1)
+    raise RuntimeError(f"nothing listened on 127.0.0.1:{port} within {timeout}s")
+
+
 def _proxy_connect(proxy_port: int, origin_port: int, ca_dir: Path) -> ssl.SSLSocket:
     """Do CONNECT against the proxy, then TLS with the proxy CA trusted."""
     raw = socket.create_connection(("127.0.0.1", proxy_port), timeout=5)
@@ -161,6 +180,7 @@ def test_tls_intercept_logs_decrypted_requests(tmp_path, tls_origin):
     )
     thread = threading.Thread(target=server.start, daemon=True)
     thread.start()
+    _wait_for_listener(proxy_port)
     try:
         client_tls = _proxy_connect(proxy_port, tls_origin, tmp_path / "ca")
         client_tls.sendall(
@@ -194,6 +214,7 @@ def test_plain_connect_still_passes_through_when_interception_off(tmp_path, tls_
     server = ProxyServer(host="127.0.0.1", port=proxy_port, db_path=str(tmp_path / "map.db"))
     thread = threading.Thread(target=server.start, daemon=True)
     thread.start()
+    _wait_for_listener(proxy_port)
     try:
         raw = socket.create_connection(("127.0.0.1", proxy_port), timeout=5)
         raw.sendall(b"CONNECT 127.0.0.1:%d HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n" % tls_origin)

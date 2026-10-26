@@ -508,7 +508,15 @@ def main() -> int:
         proxy = ProxyServer(host="127.0.0.1", port=proxy_port, db_path=str(sitemap_path),
                             tls_intercept=True, ca_dir=str(ca_dir))
         threading.Thread(target=proxy.start, daemon=True).start()
-        time.sleep(0.4)
+        deadline = time.monotonic() + 10
+        while True:  # the proxy binds from a thread; poll instead of guessing
+            try:
+                with socket_module.create_connection(("127.0.0.1", proxy_port), timeout=0.5):
+                    break
+            except OSError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.1)
         try:
             raw = socket_module.create_connection(("127.0.0.1", proxy_port), timeout=5)
             raw.sendall(b"CONNECT 127.0.0.1:%d HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n" % origin_port)
